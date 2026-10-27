@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Scramble">
+<meta name="theme-color" content="#0e1611">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box}body{margin:0}[hidden]{display:none!important}</style>
+<script src="phrases.js"></script>
+<title>Scramble Trainer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Barlow+Condensed:wght@500;600;700&display=swap">
+<style>
+/* Layout: one-screen app. Header with torch timer · woven buff band · carved plank board of slots · sand puzzle table · action bar.
+   Single dark "camp at night" look on purpose. */
+:root {
+  --ground: #0d1510;      /* night jungle */
+  --panel: #17221b;
+  --line: #2c3b30;
+  --fg: #eef0e5;
+  --muted: #92a495;
+  --tile: #e7cb90;        /* bamboo/wood tile face */
+  --tile-hi: #f1dca9;
+  --tile-edge: #9a6f33;
+  --ink: #2b1a0b;
+  --torch: #f2891f;       /* accent: torch flame */
+  --flame-hi: #ffd166;
+  --ember: #b8401b;
+  --plank: #2c1f13;       /* carved board */
+  --plank-2: #261a10;
+  --sand: #2d281d;        /* puzzle table */
+  --sand-2: #353024;
+  --good: #66c271;
+  --bad: #e2574b;
+  --slot: #120c06;
+  --font-tile: "Alfa Slab One", "Rockwell", "Georgia", serif;
+  --font-ui: "Barlow Condensed", "Avenir Next Condensed", "Arial Narrow", system-ui, sans-serif;
+  --t: 40px;              /* tile size, set by script to fit the longest word */
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background:
+    radial-gradient(120% 60% at 50% -10%, #1a2a1f 0%, transparent 60%),
+    var(--ground);
+  color: var(--fg);
+  font-family: var(--font-ui);
+  font-size: 17px;
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+  overflow: hidden;
+}
+.app {
+  height: 100%;
+  display: flex; flex-direction: column; gap: 12px;
+  padding-block: 10px 12px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  max-width: 640px; margin: 0 auto; box-sizing: border-box;
+}
+header { display: flex; align-items: center; gap: 10px; }
+header h1 {
+  font-family: var(--font-tile); font-weight: 400; font-size: 20px; margin: 0;
+  letter-spacing: 0.02em; color: var(--tile); flex: 1; min-width: 0; line-height: 1.1;
+}
+header h1 small { display: block; font-family: var(--font-ui); font-weight: 600; font-size: 13px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+.torch { display: flex; align-items: center; gap: 6px; }
+.flame {
+  width: 14px; height: 22px; border-radius: 50% 50% 45% 45% / 65% 65% 35% 35%;
+  background: radial-gradient(60% 55% at 50% 70%, var(--flame-hi) 0%, var(--torch) 55%, var(--ember) 100%);
+  box-shadow: 0 0 14px 2px rgba(242,137,31,.45);
+  transform-origin: 50% 90%;
+  animation: flicker 1.6s ease-in-out infinite;
+}
+.flame.out { background: #3a2a1c; box-shadow: none; animation: none; }
+@keyframes flicker {
+  0%,100% { transform: scale(1,1) rotate(-2deg); }
+  30% { transform: scale(.94,1.06) rotate(2deg); }
+  60% { transform: scale(1.04,.95) rotate(-1deg); }
+}
+.timer {
+  font-variant-numeric: tabular-nums; font-weight: 700; font-size: 26px;
+  color: var(--torch); min-width: 4.2ch; text-align: right;
+}
+.iconbtn {
+  background: var(--panel); border: 1px solid var(--line); color: var(--fg);
+  font: 600 15px var(--font-ui); letter-spacing: 0.06em; text-transform: uppercase;
+  border-radius: 8px; padding: 8px 12px; cursor: pointer;
+}
+/* Woven tribe band: generic zigzag pattern */
+.buff {
+  height: 8px; border-radius: 2px; flex: none; opacity: .9;
+  background:
+    linear-gradient(135deg, var(--torch) 25%, transparent 25%) -6px 0 / 12px 8px,
+    linear-gradient(225deg, var(--torch) 25%, transparent 25%) -6px 0 / 12px 8px,
+    linear-gradient(315deg, var(--tile) 25%, transparent 25%) 0 0 / 12px 8px,
+    linear-gradient(45deg, var(--tile) 25%, transparent 25%) 0 0 / 12px 8px,
+    var(--ember);
+}
+.meta { color: var(--muted); font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase; margin: -2px 0 0; }
+
+.board {
+  display: flex; flex-wrap: wrap; gap: 10px 16px; justify-content: center; align-content: center;
+  min-height: calc(var(--t) * 2 + 20px);
+  padding: 14px 8px; border-radius: 10px;
+  background:
+    repeating-linear-gradient(180deg, transparent 0 22px, rgba(0,0,0,.28) 22px 24px),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.015) 0 3px, transparent 3px 9px),
+    linear-gradient(180deg, var(--plank), var(--plank-2));
+  border: 1px solid #3a2a1a;
+  box-shadow: inset 0 0 0 3px rgba(0,0,0,.25);
+  transition: box-shadow .3s;
+}
+.word { display: flex; gap: 4px; flex-wrap: nowrap; }
+.board.nobreaks .word { flex-wrap: wrap; justify-content: center; }
+.slot {
+  width: var(--t); height: calc(var(--t) * 1.12); border-radius: 6px;
+  background: var(--slot); box-shadow: inset 0 3px 4px rgba(0,0,0,.7);
+  border-bottom: 3px solid #4a3622;
+  display: grid; place-items: center; flex: none;
+}
+.slot.hot { border-bottom-color: var(--torch); background: #2a1606; }
+.board.shake { animation: shake .35s; }
+.board.won { box-shadow: inset 0 0 0 3px rgba(0,0,0,.25), 0 0 0 2px var(--torch), 0 0 26px rgba(242,137,31,.45); }
+@keyframes shake { 20%,60% { transform: translateX(-6px) } 40%,80% { transform: translateX(6px) } }
+
+.traywrap { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.traylabel { color: var(--muted); font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; }
+.tray {
+  flex: 1; min-height: calc(var(--t) * 2.5);
+  display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start; justify-content: center;
+  padding: 10px; border-radius: 12px; overflow-y: auto;
+  border: 1px solid #3d3626;
+  background:
+    repeating-linear-gradient(45deg, rgba(255,255,255,.025) 0 6px, transparent 6px 12px),
+    repeating-linear-gradient(-45deg, rgba(0,0,0,.12) 0 6px, transparent 6px 12px),
+    radial-gradient(90% 80% at 50% 40%, var(--sand-2), var(--sand));
+}
+.tray.free { display: block; position: relative; padding: 0; overflow: hidden; }
+.tray.hot { border-color: var(--torch); }
+
+.tile {
+  width: var(--t); height: calc(var(--t) * 1.12); border-radius: 6px;
+  background:
+    repeating-linear-gradient(100deg, rgba(120,80,30,.10) 0 2px, transparent 2px 7px),
+    linear-gradient(180deg, var(--tile-hi), var(--tile));
+  color: var(--ink);
+  border-bottom: 4px solid var(--tile-edge);
+  font-family: var(--font-tile); font-size: calc(var(--t) * 0.58); line-height: 1;
+  display: grid; place-items: center; box-sizing: border-box;
+  touch-action: none; cursor: grab; flex: none;
+  box-shadow: 0 2px 4px rgba(0,0,0,.4);
+}
+.tray.free .tile { position: absolute; }
+.slot > .tile { box-shadow: none; }
+.tile.lifted { opacity: .25; }
+.tile.ghost {
+  position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none;
+  transform-origin: center; box-shadow: 0 12px 20px rgba(0,0,0,.6);
+}
+.tray .tile.insert-before { box-shadow: -4px 0 0 var(--torch); }
+
+.actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.actions button {
+  background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 10px;
+  font: 600 16px var(--font-ui); letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 13px 4px; cursor: pointer;
+}
+.actions button.primary { background: var(--torch); border-color: var(--torch); color: var(--ink); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--torch); outline-offset: 2px; }
+
+/* Result + settings sheets */
+.sheet-bg {
+  position: fixed; inset: 0; z-index: 60; background: rgba(4,8,5,.72);
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.sheet {
+  width: 100%; max-width: 640px; box-sizing: border-box; max-height: 88%; overflow-y: auto;
+  background: var(--panel); border-top: 1px solid var(--line); border-radius: 16px 16px 0 0;
+  padding-block: 20px calc(20px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(20px, env(safe-area-inset-left, 0px));
+  padding-right: max(20px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 16px;
+}
+.sheet .buff { margin: -20px -20px 0; border-radius: 16px 16px 0 0; }
+.sheet h2 { margin: 0; font-family: var(--font-tile); font-weight: 400; font-size: 22px; color: var(--tile); }
+.answer { font-family: var(--font-tile); font-size: 22px; letter-spacing: 0.04em; color: var(--fg); text-wrap: balance; }
+.bigtime { font-size: 44px; font-weight: 700; color: var(--torch); font-variant-numeric: tabular-nums; line-height: 1; }
+.sub { color: var(--muted); font-size: 16px; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.row label { font-size: 18px; font-weight: 600; }
+.row small { display: block; color: var(--muted); font-weight: 500; font-size: 14px; }
+.switch { appearance: none; -webkit-appearance: none; width: 50px; height: 30px; border-radius: 15px; background: var(--line); position: relative; flex: none; cursor: pointer; transition: background .15s; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: var(--fg); transition: transform .15s; }
+.switch:checked { background: var(--torch); }
+.switch:checked::after { transform: translateX(20px); }
+select { background: var(--slot); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; font: 600 17px var(--font-ui); padding: 8px 10px; max-width: 55%; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-variant-numeric: tabular-nums; }
+.stat { background: var(--slot); border-radius: 10px; padding: 10px; }
+.stat b { display: block; font-size: 24px; color: var(--fg); }
+.stat span { color: var(--muted); font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
+table.hist { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 15px; }
+table.hist td { padding: 6px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.hist td:last-child { text-align: right; color: var(--torch); white-space: nowrap; padding-left: 10px; }
+.sheet .btnrow { display: flex; gap: 8px; }
+.sheet .btnrow button { flex: 1; }
+.btn-torch { background: var(--torch) !important; color: var(--ink) !important; border-color: var(--torch) !important; }
+.danger { color: var(--bad) !important; }
+.confirm { color: var(--muted); font-size: 15px; }
+@media (prefers-reduced-motion: reduce) { .board.shake, .flame { animation: none; } .switch, .switch::after, .board { transition: none; } }
+@media (max-height: 640px) { .app { gap: 9px; } .actions button { padding: 10px 4px; } }
+</style>
+
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Scramble Trainer<small id="day">Day 1</small></h1>
+    <div class="torch"><div class="flame" id="flame" aria-hidden="true"></div><div class="timer" id="timer" aria-live="off">0:00</div></div>
+    <button class="iconbtn" id="menuBtn" type="button">Camp</button>
+  </header>
+  <div class="buff" aria-hidden="true"></div>
+  <p class="meta" id="meta"></p>
+  <div class="board" id="board" aria-label="Answer slots"></div>
+  <div class="traywrap">
+    <div class="traylabel" id="trayLabel">Puzzle table</div>
+    <div class="tray" id="tray" aria-label="Letter tiles"></div>
+  </div>
+  <div class="actions">
+    <button type="button" id="shuffleBtn">Shuffle</button>
+    <button type="button" id="clearBtn">Clear</button>
+    <button type="button" id="giveBtn">Give up</button>
+    <button type="button" id="nextBtn" class="primary">Skip</button>
+  </div>
+</div>
+
+<div class="sheet-bg" id="resultSheet" hidden>
+  <div class="sheet" role="dialog" aria-labelledby="resultTitle">
+    <div class="buff" aria-hidden="true"></div>
+    <h2 id="resultTitle">Safe tonight</h2>
+    <div class="bigtime" id="resultTime">0:00</div>
+    <div class="answer" id="resultAnswer"></div>
+    <div class="sub" id="resultSub"></div>
+    <div class="btnrow">
+      <button class="iconbtn" type="button" id="resultClose">Look at board</button>
+      <button class="iconbtn btn-torch" type="button" id="resultNext">Next puzzle</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-bg" id="menuSheet" hidden>
+  <div class="sheet" role="dialog" aria-labelledby="menuTitle">
+    <div class="buff" aria-hidden="true"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <h2 id="menuTitle">Camp</h2>
+      <button class="iconbtn" type="button" id="menuClose">Done</button>
+    </div>
+    <div>
+      <div class="row">
+        <label for="optFree">Free table<small>Leave tiles anywhere on the table. Off lines them up in rows.</small></label>
+        <input class="switch" type="checkbox" id="optFree">
+      </div>
+      <div class="row">
+        <label for="optBreaks">Word breaks<small>Show slots grouped by word</small></label>
+        <input class="switch" type="checkbox" id="optBreaks">
+      </div>
+      <div class="row">
+        <label for="optDecoys">Decoy letters<small>Extra tiles that aren't in the answer</small></label>
+        <input class="switch" type="checkbox" id="optDecoys">
+      </div>
+      <div class="row">
+        <label for="optDiff">Length<small>Letters in the answer</small></label>
+        <select id="optDiff">
+          <option value="any">Any</option>
+          <option value="easy">Short · up to 12</option>
+          <option value="medium">Medium · 13–20</option>
+          <option value="hard">Long · 21+</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="optSource">Phrases<small>Which bank to draw from</small></label>
+        <select id="optSource">
+          <option value="all">Everything</option>
+          <option value="style">Show-style mix</option>
+          <option value="history">Past show answers</option>
+          <option value="game">Game phrases</option>
+          <option value="word">Long single words</option>
+          <option value="reward">Reward phrases</option>
+          <option value="lore">Game terms</option>
+          <option value="idiom">Sayings</option>
+        </select>
+      </div>
+      <p class="sub" style="margin:10px 0 0">Free table applies right away. The rest apply to the next puzzle.</p>
+    </div>
+    <h2>Your times</h2>
+    <div class="stats" id="statGrid"></div>
+    <table class="hist" id="histTable"></table>
+    <div>
+      <button class="iconbtn danger" type="button" id="resetBtn">Reset stats</button>
+      <span class="confirm" id="resetConfirm" hidden> Tap again to erase all times.</span>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const $ = (s) => document.querySelector(s);
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('st_' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem('st_' + k, JSON.stringify(v)); } catch (e) {} }
+  };
+  const settings = Object.assign({ free: true, breaks: true, decoys: false, diff: 'any', source: 'all' }, store.get('settings', {}));
+  let log = store.get('log', []); // {ts, ms, len, diff, decoys, breaks, t, gaveUp}
+  let game = null, timerId = null, hiddenAt = null;
+
+  const letters = (t) => t.toUpperCase().replace(/[^A-Z]/g, '');
+  const wordsOf = (t) => t.toUpperCase().replace(/[^A-Z ]/g, '').split(/\s+/).filter(Boolean);
+  const diffOf = (t) => { const n = letters(t).length; return n <= 12 ? 'easy' : n <= 20 ? 'medium' : 'hard'; };
+  const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const fmt = (ms) => { const s = Math.floor(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const tilt = () => Math.round((Math.random() * 10 - 5) * 10) / 10;
+  const DIFF_LABEL = { easy: 'Short', medium: 'Medium', hard: 'Long' };
+  const STYLE = ['history', 'game', 'word', 'reward'];
+
+  function sourceOk(p) {
+    if (settings.source === 'all') return true;
+    if (settings.source === 'style') return STYLE.includes(p.s);
+    return p.s === settings.source;
+  }
+  function pickPhrase() {
+    const all = (typeof PHRASES !== 'undefined' && PHRASES.length) ? PHRASES : [{ t: 'Outwit outplay outlast', s: 'lore' }];
+    let pool = all.filter((p) => (settings.diff === 'any' || diffOf(p.t) === settings.diff) && sourceOk(p));
+    if (!pool.length) pool = all.filter(sourceOk);
+    if (!pool.length) pool = all;
+    const recent = store.get('recent', []);
+    let fresh = pool.filter((p) => !recent.includes(p.t));
+    if (!fresh.length) fresh = pool;
+    const p = fresh[Math.floor(Math.random() * fresh.length)];
+    recent.push(p.t);
+    while (recent.length > Math.max(1, Math.min(80, Math.floor(all.length / 2)))) recent.shift();
+    store.set('recent', recent);
+    return p;
+  }
+
+  function dayNum() {
+    const days = new Set(log.map((x) => new Date(x.ts).toDateString()));
+    days.add(new Date().toDateString());
+    return days.size;
+  }
+
+  function newGame() {
+    const p = pickPhrase();
+    const ans = letters(p.t);
+    const tiles = ans.split('');
+    const nd = settings.decoys ? Math.max(2, Math.min(5, Math.round(ans.length * 0.2))) : 0;
+    const bag = 'EEEEEAAAAIIIOOONNNRRRSSSTTTLLDDUUCMMHHGPPBYWFKV';
+    for (let i = 0; i < nd; i++) tiles.push(bag[Math.floor(Math.random() * bag.length)]);
+    let order = shuffle(tiles.map((_, i) => i));
+    if (order.slice(0, ans.length).map((i) => tiles[i]).join('') === ans && ans.length > 2) order = shuffle(order);
+    game = {
+      p, ans, words: wordsOf(p.t), tiles,
+      slots: Array(ans.length).fill(null), tray: order, pos: {},
+      breaks: settings.breaks, decoys: nd,
+      elapsed: 0, startedAt: Date.now(), done: false
+    };
+    closeSheets();
+    $('#nextBtn').textContent = 'Skip';
+    $('#flame').classList.remove('out');
+    render();
+    startTimer();
+  }
+
+  // ---- timer (pauses while the app is in the background) ----
+  const elapsed = () => game.elapsed + (game.startedAt ? Date.now() - game.startedAt : 0);
+  function startTimer() { clearInterval(timerId); timerId = setInterval(tick, 250); tick(); }
+  function stopTimer() { if (game.startedAt) { game.elapsed = elapsed(); game.startedAt = null; } clearInterval(timerId); tick(); }
+  function tick() { $('#timer').textContent = fmt(elapsed()); }
+  document.addEventListener('visibilitychange', () => {
+    if (!game || game.done) return;
+    if (document.hidden) { if (game.startedAt) { game.elapsed = elapsed(); game.startedAt = null; hiddenAt = true; } }
+    else if (hiddenAt) { game.startedAt = Date.now(); hiddenAt = null; }
+  });
+
+  // ---- geometry ----
+  const M = 8; // margin inside the free table
+  function tileSize() {
+    const t = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--t')) || 40;
+    return { w: t, h: t * 1.12 };
+  }
+  function sizeTiles() {
+    const board = $('#board');
+    const avail = board.clientWidth - 16;
+    const longest = game.breaks ? Math.max(...game.words.map((w) => w.length)) : Math.min(game.ans.length, 9);
+    const fit = Math.floor((avail - (longest - 1) * 4) / longest);
+    document.documentElement.style.setProperty('--t', clamp(fit, 26, 46) + 'px');
+  }
+  function trayBox() {
+    const tr = $('#tray'), t = tileSize();
+    return { el: tr, r: tr.getBoundingClientRect(), t, w: Math.max(1, tr.clientWidth - t.w - 2 * M), h: Math.max(1, tr.clientHeight - t.h - 2 * M) };
+  }
+  // Give any tray tile without a spot a free one, so new and returned tiles never land on top of others.
+  function ensurePositions() {
+    const b = trayBox();
+    const need = game.tray.filter((tid) => !game.pos[tid]);
+    if (!need.length) return;
+    const cols = Math.max(1, Math.floor((b.w + b.t.w) / (b.t.w * 1.3)));
+    const rows = Math.max(1, Math.floor((b.h + b.t.h) / (b.t.h * 1.3)));
+    const cells = [];
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) cells.push([c, r]);
+    shuffle(cells);
+    const taken = game.tray.filter((tid) => game.pos[tid]).map((tid) => game.pos[tid]);
+    const near = (x, y) => taken.some((q) => Math.hypot((q.x - x) * b.w, (q.y - y) * b.h) < b.t.w * 0.95);
+    for (const tid of need) {
+      let spot = null;
+      for (let k = 0; k < cells.length; k++) {
+        const [c, r] = cells[k];
+        const jx = (Math.random() - 0.5) * 0.35, jy = (Math.random() - 0.5) * 0.35;
+        const x = cols > 1 ? clamp((c + jx) / (cols - 1), 0, 1) : 0.5;
+        const y = rows > 1 ? clamp((r + jy) / (rows - 1), 0, 1) : 0.5;
+        if (!near(x, y)) { spot = { x, y }; cells.splice(k, 1); break; }
+      }
+      if (!spot) spot = { x: Math.random(), y: Math.random() };
+      spot.r = tilt();
+      game.pos[tid] = spot;
+      taken.push(spot);
+    }
+  }
+
+  // ---- rendering ----
+  function tileEl(tid, from, slotIdx) {
+    const el = document.createElement('div');
+    el.className = 'tile';
+    el.textContent = game.tiles[tid];
+    el.dataset.tid = tid;
+    el.dataset.from = from;
+    if (slotIdx !== undefined) el.dataset.slot = slotIdx;
+    el.addEventListener('pointerdown', onDown);
+    return el;
+  }
+
+  function render() {
+    sizeTiles();
+    const board = $('#board');
+    board.innerHTML = '';
+    board.classList.toggle('nobreaks', !game.breaks);
+    board.classList.toggle('won', game.done && !game.gaveUp);
+    const groups = game.breaks ? game.words.map((w) => w.length) : [game.ans.length];
+    let i = 0;
+    for (const len of groups) {
+      const g = document.createElement('div');
+      g.className = 'word';
+      for (let k = 0; k < len; k++, i++) {
+        const s = document.createElement('div');
+        s.className = 'slot';
+        s.dataset.slot = i;
+        if (game.slots[i] !== null) s.appendChild(tileEl(game.slots[i], 'slot', i));
+        g.appendChild(s);
+      }
+      board.appendChild(g);
+    }
+    const tray = $('#tray');
+    tray.innerHTML = '';
+    tray.classList.toggle('free', settings.free);
+    $('#trayLabel').textContent = settings.free
+      ? 'Puzzle table · move tiles anywhere, tap one to send it up'
+      : 'Puzzle table · drag to a slot, or tap to place';
+    if (settings.free) {
+      ensurePositions();
+      const b = trayBox();
+      game.tray.forEach((tid) => {
+        const el = tileEl(tid, 'tray');
+        const p = game.pos[tid];
+        el.style.left = (M + p.x * b.w) + 'px';
+        el.style.top = (M + p.y * b.h) + 'px';
+        el.style.transform = 'rotate(' + p.r + 'deg)';
+        tray.appendChild(el);
+      });
+    } else {
+      game.tray.forEach((tid) => tray.appendChild(tileEl(tid, 'tray')));
+    }
+    const bits = [game.ans.length + ' letters'];
+    if (game.breaks) bits.push(game.words.length + (game.words.length === 1 ? ' word' : ' words'));
+    if (game.decoys) bits.push(game.decoys + ' decoys');
+    $('#meta').textContent = bits.join(' · ');
+    $('#day').textContent = 'Day ' + dayNum();
+  }
+
+  // ---- moves ----
+  function removeFromTray(tid) { const k = game.tray.indexOf(tid); if (k > -1) game.tray.splice(k, 1); }
+  function move(tid, from, fromSlot, tgt) {
+    const S = game.slots;
+    if (tgt.type === 'slot') {
+      if (from === 'slot' && fromSlot === tgt.i) return;
+      const occ = S[tgt.i];
+      if (from === 'tray') {
+        removeFromTray(tid);
+        if (occ !== null) { game.tray.push(occ); if (game.pos[tid]) game.pos[occ] = Object.assign({}, game.pos[tid]); else delete game.pos[occ]; }
+      } else { S[fromSlot] = occ; }
+      delete game.pos[tid];
+      S[tgt.i] = tid;
+    } else if (tgt.type === 'tray') {
+      if (from === 'slot') S[fromSlot] = null; else removeFromTray(tid);
+      if (tgt.x != null) {
+        game.pos[tid] = { x: tgt.x, y: tgt.y, r: tilt() };
+        game.tray.push(tid); // last moved sits on top
+      } else {
+        delete game.pos[tid];
+        const at = tgt.before != null ? game.tray.indexOf(tgt.before) : -1;
+        if (at > -1) game.tray.splice(at, 0, tid); else game.tray.push(tid);
+      }
+    }
+    render();
+    check();
+  }
+  function tap(d) {
+    if (d.from === 'tray') {
+      const empty = game.slots.indexOf(null);
+      if (empty > -1) move(d.tid, 'tray', null, { type: 'slot', i: empty });
+    } else {
+      move(d.tid, 'slot', d.slot, { type: 'tray' });
+    }
+  }
+
+  function check() {
+    if (game.done || game.slots.includes(null)) return;
+    const guess = game.slots.map((t) => game.tiles[t]).join('');
+    if (guess === game.ans) return finish(false);
+    const b = $('#board');
+    b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake');
+    if (navigator.vibrate) navigator.vibrate(60);
+  }
+
+  function finish(gaveUp) {
+    stopTimer();
+    game.done = true; game.gaveUp = gaveUp;
+    if (gaveUp) {
+      // Lay the answer out using the actual tiles.
+      const all = game.slots.filter((x) => x !== null).concat(game.tray);
+      const used = new Set();
+      game.slots = game.ans.split('').map((ch) => { const tid = all.find((t) => !used.has(t) && game.tiles[t] === ch); used.add(tid); return tid; });
+      game.tray = all.filter((t) => !used.has(t));
+      $('#flame').classList.add('out');
+    }
+    const ms = game.elapsed;
+    const entry = { ts: Date.now(), ms, len: game.ans.length, diff: diffOf(game.p.t), decoys: game.decoys > 0, breaks: game.breaks, t: game.p.t, gaveUp };
+    log.push(entry); if (log.length > 500) log = log.slice(-500);
+    store.set('log', log);
+    render();
+    $('#nextBtn').textContent = 'Next';
+    showResult(entry);
+  }
+
+  function showResult(e) {
+    const same = log.filter((x) => !x.gaveUp && x.diff === e.diff);
+    const best = same.length ? Math.min(...same.map((x) => x.ms)) : null;
+    const avg = same.length ? same.reduce((a, x) => a + x.ms, 0) / same.length : null;
+    let title = e.gaveUp ? 'Your torch is out' : 'Safe tonight';
+    let sub = e.gaveUp ? 'Here was the answer. ' + DIFF_LABEL[e.diff] + ' puzzle.' : DIFF_LABEL[e.diff] + ' puzzle';
+    if (!e.gaveUp && same.length) {
+      if (e.ms === best && same.length > 1) { title = 'New camp record'; sub = 'Fastest ' + DIFF_LABEL[e.diff].toLowerCase() + ' solve yet · average ' + fmt(avg) + ' over ' + same.length; }
+      else sub += ' · best ' + fmt(best) + ' · average ' + fmt(avg) + ' over ' + same.length;
+    }
+    $('#resultTitle').textContent = title;
+    $('#resultTime').textContent = fmt(e.ms);
+    $('#resultAnswer').textContent = game.p.t.toUpperCase();
+    $('#resultSub').textContent = sub;
+    $('#resultSheet').hidden = false;
+  }
+
+  // ---- drag ----
+  let drag = null;
+  function onDown(e) {
+    if (game.done || e.button > 0) return;
+    e.preventDefault();
+    const el = e.currentTarget;
+    drag = { tid: +el.dataset.tid, from: el.dataset.from, slot: el.dataset.slot !== undefined ? +el.dataset.slot : null, x0: e.clientX, y0: e.clientY, moved: false, el, ghost: null, tgt: null };
+  }
+  const LIFT = 34; // the dragged tile floats above the finger so it stays visible
+  function targetAt(x, y) {
+    const t = tileSize();
+    let best = null, bd = Infinity;
+    document.querySelectorAll('#board .slot').forEach((s) => {
+      const r = s.getBoundingClientRect();
+      const d = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2));
+      if (d < bd) { bd = d; best = s; }
+    });
+    if (best && bd < t.w * 0.85) return { type: 'slot', i: +best.dataset.slot, el: best };
+    const b = trayBox();
+    const tr = b.r;
+    if (x >= tr.left && x <= tr.right && y >= tr.top - 10 && y <= tr.bottom + 10) {
+      if (settings.free) {
+        const left = x - t.w / 2 - tr.left - b.el.clientLeft - M;
+        const top = y - t.h / 2 - tr.top - b.el.clientTop - M;
+        return { type: 'tray', x: clamp(left / b.w, 0, 1), y: clamp(top / b.h, 0, 1), el: b.el };
+      }
+      let before = null;
+      const tiles = [...document.querySelectorAll('#tray .tile')].filter((el) => el !== drag.el);
+      for (const el of tiles) {
+        const r = el.getBoundingClientRect();
+        if (y >= r.top - 3 && y <= r.bottom + 3 && x < r.left + r.width / 2) { before = el; break; }
+      }
+      return { type: 'tray', before: before ? +before.dataset.tid : null, el: b.el, beforeEl: before };
+    }
+    return null;
+  }
+  function clearHot() { document.querySelectorAll('.hot, .insert-before').forEach((n) => n.classList.remove('hot', 'insert-before')); }
+  window.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    if (!drag.moved) {
+      if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 7) return;
+      drag.moved = true;
+      const g = drag.el.cloneNode(true);
+      g.classList.add('ghost');
+      g.style.left = '0'; g.style.top = '0';
+      document.body.appendChild(g);
+      drag.ghost = g;
+      drag.el.classList.add('lifted');
+    }
+    const t = tileSize();
+    const cx = e.clientX, cy = e.clientY - LIFT;
+    drag.ghost.style.transform = 'translate(' + (cx - t.w / 2) + 'px,' + (cy - t.h / 2) + 'px) scale(1.12)';
+    clearHot();
+    drag.tgt = targetAt(cx, cy);
+    if (drag.tgt) {
+      if (drag.tgt.type === 'slot' || !settings.free) drag.tgt.el.classList.add('hot');
+      if (drag.tgt.beforeEl) drag.tgt.beforeEl.classList.add('insert-before');
+    }
+  }, { passive: true });
+  function endDrag(cancel) {
+    if (!drag) return;
+    const d = drag; drag = null;
+    if (d.ghost) d.ghost.remove();
+    clearHot();
+    if (cancel) { render(); return; }
+    if (!d.moved) { tap(d); return; }
+    if (d.tgt) move(d.tid, d.from, d.slot, d.tgt); else render();
+  }
+  window.addEventListener('pointerup', () => endDrag(false));
+  window.addEventListener('pointercancel', () => endDrag(true));
+
+  // ---- buttons ----
+  $('#shuffleBtn').onclick = () => {
+    if (game.done) return;
+    shuffle(game.tray);
+    game.tray.forEach((tid) => delete game.pos[tid]);
+    render();
+  };
+  $('#clearBtn').onclick = () => {
+    if (game.done) return;
+    game.slots.forEach((t, i) => { if (t !== null) { game.tray.push(t); delete game.pos[t]; game.slots[i] = null; } });
+    render();
+  };
+  $('#giveBtn').onclick = () => { if (!game.done) finish(true); };
+  $('#nextBtn').onclick = newGame;
+  $('#resultNext').onclick = newGame;
+  $('#resultClose').onclick = () => { $('#resultSheet').hidden = true; };
+  $('#resultSheet').addEventListener('click', (e) => { if (e.target.id === 'resultSheet') e.currentTarget.hidden = true; });
+
+  function closeSheets() { $('#resultSheet').hidden = true; $('#menuSheet').hidden = true; }
+
+  // ---- settings + stats ----
+  const optFree = $('#optFree'), optBreaks = $('#optBreaks'), optDecoys = $('#optDecoys'), optDiff = $('#optDiff'), optSource = $('#optSource');
+  function saveSettings() {
+    const freeChanged = settings.free !== optFree.checked;
+    settings.free = optFree.checked;
+    settings.breaks = optBreaks.checked; settings.decoys = optDecoys.checked;
+    settings.diff = optDiff.value; settings.source = optSource.value;
+    store.set('settings', settings);
+    if (freeChanged && game) render();
+  }
+  [optFree, optBreaks, optDecoys, optDiff, optSource].forEach((el) => el.addEventListener('change', saveSettings));
+
+  function renderStats() {
+    const solved = log.filter((x) => !x.gaveUp);
+    const grid = $('#statGrid');
+    grid.innerHTML = '';
+    ['easy', 'medium', 'hard'].forEach((d) => {
+      const s = solved.filter((x) => x.diff === d);
+      const best = s.length ? fmt(Math.min(...s.map((x) => x.ms))) : '–';
+      const avg = s.length ? fmt(s.reduce((a, x) => a + x.ms, 0) / s.length) : '–';
+      const div = document.createElement('div');
+      div.className = 'stat';
+      div.innerHTML = '<span></span><b></b><span></span>';
+      div.children[0].textContent = DIFF_LABEL[d] + ' · ' + s.length;
+      div.children[1].textContent = avg;
+      div.children[2].textContent = 'avg · best ' + best;
+      grid.appendChild(div);
+    });
+    const gu = log.filter((x) => x.gaveUp).length;
+    const table = $('#histTable');
+    table.innerHTML = '';
+    const recent = log.slice(-12).reverse();
+    if (!recent.length) {
+      table.innerHTML = '<tr><td class="sub">No puzzles finished yet. Your last 12 results show here.</td><td></td></tr>';
+    }
+    recent.forEach((x) => {
+      const tr = document.createElement('tr');
+      const a = document.createElement('td');
+      a.textContent = x.t + (x.decoys ? ' · decoys' : '') + (x.breaks ? '' : ' · no breaks');
+      const b = document.createElement('td');
+      b.textContent = x.gaveUp ? 'gave up' : fmt(x.ms);
+      tr.append(a, b); table.appendChild(tr);
+    });
+    if (gu) { const tr = document.createElement('tr'); tr.innerHTML = '<td class="sub"></td><td></td>'; tr.firstChild.textContent = gu + ' gave up in total'; table.appendChild(tr); }
+  }
+
+  $('#menuBtn').onclick = () => {
+    optFree.checked = settings.free; optBreaks.checked = settings.breaks; optDecoys.checked = settings.decoys;
+    optDiff.value = settings.diff; optSource.value = settings.source;
+    $('#resetConfirm').hidden = true;
+    renderStats();
+    $('#menuSheet').hidden = false;
+  };
+  $('#menuClose').onclick = () => { $('#menuSheet').hidden = true; };
+  $('#menuSheet').addEventListener('click', (e) => { if (e.target.id === 'menuSheet') e.currentTarget.hidden = true; });
+  $('#resetBtn').onclick = () => {
+    const c = $('#resetConfirm');
+    if (c.hidden) { c.hidden = false; return; }
+    log = []; store.set('log', log); c.hidden = true; renderStats(); $('#day').textContent = 'Day ' + dayNum();
+  };
+
+  let rz = null;
+  window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (game && !drag) render(); }, 120); });
+  newGame();
+})();
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+</script>
+</body>
+</html>
